@@ -66,7 +66,7 @@ function postprocess_controller()
             "maxrate"=>array("type"=>"value", "short"=>"Max accumulation rate:"),
             "output"=>array("type"=>"newfeed", "engine"=>5, "short"=>"Enter output feed name:")
         ),
-        "permeability_losses"=>array(
+        "infiltration_losses"=>array(
             "tint"=>array("type"=>"feed", "engine"=>5, "short"=>"Internal temperature feed :"),
             "text"=>array("type"=>"feed", "engine"=>5, "short"=>"External temperature feed :"),
             "ws"=>array("type"=>"feed", "engine"=>5, "short"=>"Wind speed feed in m/s :"),

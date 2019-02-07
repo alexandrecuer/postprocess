@@ -3,7 +3,7 @@
 chdir("/home/pi/postprocess/lib/");
 include "building_model.php";
 
-function permeability_losses($dir,$processitem)
+function infiltration_losses($dir,$processitem)
 {
 
     $tint = $processitem->tint;
@@ -36,29 +36,15 @@ function permeability_losses($dir,$processitem)
         return false;
     }
     
-    //adjusting the interval of the feed
-    $out_interval=max($tint_meta->interval,$text_meta->interval,$ws_meta->interval);
-    print("NOTICE : out_interval : $out_interval - original feeds intervals : ($tint_meta->interval,$text_meta->interval,$ws_meta->interval) \n");
-    
-    //adjusting the start_time of the feed
-    $out_start_time=max($tint_meta->start_time,$text_meta->start_time,$ws_meta->start_time);
-    $out_start_time=floor($out_start_time/$out_interval)*$out_interval;
-    print("NOTICE : out_start_time : $out_start_time - original feeds start_times : ($tint_meta->start_time,$text_meta->start_time,$ws_meta->start_time) \n");
-    
-    //calculating the supposed end
-    $tint_end = $tint_meta->start_time+$tint_meta->npoints*$tint_meta->interval;
-    $text_end = $text_meta->start_time+$text_meta->npoints*$text_meta->interval;
-    $ws_end = $ws_meta->start_time+$ws_meta->npoints*$ws_meta->interval;
-    print("NOTICE : original feeds ends : ($tint_end,$text_end,$ws_end) \n");
-    $writing_end_time=min($tint_end,$text_end,$ws_end);
+    $compute_meta=compute_meta($tint_meta,$text_meta,$ws_meta);
     
     //reading the output meta and if dat file is empty, we adjust interval and start_time
     //we do not report the values in the meta file at this stage. we wait for the dat file to be filled with processed datas
     //if dat file is not empty, meta file should already contain correct values
     print("NOTICE : ouput is : ($out_meta->npoints,$out_meta->interval,$out_meta->start_time) \n");
     if($out_meta->npoints==0) {
-        $out_meta->interval=$out_interval;
-        $out_meta->start_time=$out_start_time;
+        $out_meta->interval=$compute_meta->interval;
+        $out_meta->start_time=$compute_meta->start_time;
     }
     print("NOTICE : ouput is now : ($out_meta->npoints,$out_meta->interval,$out_meta->start_time) \n");
     
@@ -83,6 +69,7 @@ function permeability_losses($dir,$processitem)
     
     //calculating the time we are supposed to begin writing
     $writing_start_time=$out_meta->start_time+($out_meta->interval*$out_meta->npoints);
+    $writing_end_time=$compute_meta->writing_end_time;
     $interval=$out_meta->interval;
     $buffer="";
     for ($time=$writing_start_time;$time<$writing_end_time;$time+=$interval){
