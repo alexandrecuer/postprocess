@@ -70,7 +70,7 @@ function postprocess_controller()
             "tint"=>array("type"=>"feed", "engine"=>5, "short"=>"Internal temperature feed :"),
             "text"=>array("type"=>"feed", "engine"=>5, "short"=>"External temperature feed :"),
             "ws"=>array("type"=>"feed", "engine"=>5, "short"=>"Wind speed feed in m/s :"),
-            "qvent"=>array("type"=>"value", "short"=>"Ventilation flow rate in m3/s :"),
+            "qvent"=>array("type"=>"value", "short"=>"Ventilation flow rate in m3/h :"),
             "hbat"=>array("type"=>"value", "short"=>"building height in m :"),
             "q4pasurf"=>array("type"=>"value", "short"=>"q4pasurf in m3/h/m2 - leakage flow rate at differential pressure of 4 pascals divided by atbat - q4pasurf is equivalent to european n50 :"),
             "atbat"=>array("type"=>"value", "short"=>"atbat in m2 - wall surface exposed to energy losses :"),
