@@ -5,8 +5,7 @@ defined('EMONCMS_EXEC') or die('Restricted access');
 
 function postprocess_controller()
 {
-    global $log,$homedir,$session,$route,$mysqli,$redis,$feed_settings;
-    if (!isset($homedir)) $homedir = "/home/pi";
+    global $log,$homedir,$linked_modules_dir,$session,$route,$mysqli,$redis,$feed_settings;
     
     $result = false;
     $route->format = "text";
@@ -113,7 +112,7 @@ function postprocess_controller()
 
     // -------------------------------------------------------------------------
     // PROCESS LIST
-    // -------------------------------------------------------------------------
+    // -------------------------------------------------------------------------    
     if ($route->action == "list" && $session['write']) {
         
         $userid = $session['userid'];
@@ -138,12 +137,16 @@ function postprocess_controller()
                         if ($feed->exist((int)$id)) {
                             $f = $feed->get($id);
                             if ($f['userid']!=$session['userid']) return false;
-                            $meta = $feed->get_meta($id);
-                            $f['start_time'] = $meta->start_time;
-                            $f['interval'] = $meta->interval;
-                            $f['npoints'] = $meta->npoints;
-                            $f['id'] = (int) $f['id'];
-                            
+                            if ($meta = $feed->get_meta($id)) {
+                                $f['start_time'] = $meta->start_time;
+                                $f['interval'] = $meta->interval;
+                                $f['npoints'] = $meta->npoints;
+                                $f['id'] = (int) $f['id'];
+                                $timevalue = $feed->get_timevalue($id);
+                                $f['time'] = $timevalue["time"];
+                            } else {
+                                $valid = false;
+                            }
                             $item->$key = $f;
                         } else {
                             $valid = false;
@@ -152,24 +155,25 @@ function postprocess_controller()
                     
                     if ($option['type']=="formula"){
                         $formula=$processlist[$i]->$key;
-                        $f=[];
+                        $f=array();
                         $f['expression']=$formula;
                         //we catch feed numbers in the formula
-                        $feed_ids=[];
+                        $feed_ids=array();
                         while(preg_match("/(f\d+)/",$formula,$b)){
                             $feed_ids[]=substr($b[0],1,strlen($b[0])-1);
                             $formula=str_replace($b[0],"",$formula);
                         }
-                        $all_intervals=[];
-                        $all_start_times=[];
-                        $all_ending_times=[];
+                        $all_intervals=array();
+                        $all_start_times=array();
+                        $all_ending_times=array();
                         //we check feeds existence and stores all usefull metas
                         foreach($feed_ids as $id) {
                             if ($feed->exist((int)$id)){
                                 $m=$feed->get_meta($id);
                                 $all_intervals[]=$m->interval;
                                 $all_start_times[]=$m->start_time;
-                                $all_ending_times[]=$feed->get_timevalue($id)['time'];
+                                $timevalue = $feed->get_timevalue($id);
+                                $all_ending_times[] = $timevalue["time"];
                             } else {
                                 $valid = false;
                             }
@@ -232,7 +236,7 @@ function postprocess_controller()
            }
            
            if ($option['type']=="newfeed") {
-               $newfeedname = preg_replace('/[^\w\s-:]/','',$params->$key);
+               $newfeedname = preg_replace('/[^\w\s\-:]/','',$params->$key);
                if ($params->$key=="")
                    return array('content'=>"new feed name is blank");
                if ($newfeedname!=$params->$key)
@@ -341,7 +345,8 @@ function postprocess_controller()
         // -----------------------------------------------------------------
         // Run postprocessor script using the emonpi service-runner
         // -----------------------------------------------------------------
-        $update_script = "$homedir/postprocess/postprocess.sh";
+        if (!$linked_modules_dir) $linked_modules_dir = $homedir;
+        $update_script = "$linked_modules_dir/postprocess/postprocess.sh";
         $update_logfile = "$homedir/data/postprocess.log";
         $redis->rpush("service-runner","$update_script>$update_logfile");
         $result = "service-runner trigger sent";
