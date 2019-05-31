@@ -1,6 +1,8 @@
 <?php
 
-chdir("/home/pi/postprocess/lib/");
+$scriptPath = getcwd();
+$libdir = "$scriptPath/lib/";
+chdir($libdir);
 include "building_model.php";
 
 function infiltration_losses($dir,$processitem)
