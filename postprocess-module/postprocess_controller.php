@@ -10,6 +10,7 @@ function postprocess_controller()
     $result = false;
     $route->format = "text";
 
+    $log = new EmonLogger(__FILE__);
 
     include "Modules/postprocess/postprocess_model.php";
     $postprocess = new PostProcess($mysqli);
@@ -65,16 +66,8 @@ function postprocess_controller()
             "maxrate"=>array("type"=>"value", "short"=>"Max accumulation rate:"),
             "output"=>array("type"=>"newfeed", "engine"=>5, "short"=>"Enter output feed name:")
         ),
-        "infiltration_losses"=>array(
-            "tint"=>array("type"=>"feed", "engine"=>5, "short"=>"Internal temperature feed :"),
-            "text"=>array("type"=>"feed", "engine"=>5, "short"=>"External temperature feed :"),
-            "ws"=>array("type"=>"feed", "engine"=>5, "short"=>"Wind speed feed in m/s :"),
-            "qvent"=>array("type"=>"value", "short"=>"Ventilation flow rate in m3/h :"),
-            "hbat"=>array("type"=>"value", "short"=>"building height in m :"),
-            "q4pasurf"=>array("type"=>"value", "short"=>"q4pasurf in m3/h/m2 - leakage flow rate at differential pressure of 4 pascals divided by atbat - q4pasurf is equivalent to european n50 :"),
-            "atbat"=>array("type"=>"value", "short"=>"atbat in m2 - wall surface exposed to energy losses :"),
-            "mea"=>array("type"=>"value", "short"=>"mea in m3/h - air inlet module :"),
-            "output"=>array("type"=>"newfeed", "engine"=>5, "short"=>"Enter output feed name for permeability losses in m3/h :")
+        "removenan"=>array(
+            "feedid"=>array("type"=>"feed", "engine"=>5, "short"=>"Select feed to remove nan values:"),
         ),
         "liquidorairflow_tokwh"=>array(
             "vhc"=>array("type"=>"value", "short"=>"volumetric heat capacity in Wh/m3/K"),
@@ -93,6 +86,17 @@ function postprocess_controller()
         "basic_formula"=>array(
             "formula"=>array("type"=>"formula", "short"=>"Enter your formula (e.g. f1+2*f2-f3/12 if you work on feeds 1,2,3) - brackets not implemented"),
             "output"=>array("type"=>"newfeed", "engine"=>5, "short"=>"Enter output feed name :")
+        ),
+        "infiltration_losses"=>array(
+            "tint"=>array("type"=>"feed", "engine"=>5, "short"=>"Internal temperature feed :"),
+            "text"=>array("type"=>"feed", "engine"=>5, "short"=>"External temperature feed :"),
+            "ws"=>array("type"=>"feed", "engine"=>5, "short"=>"Wind speed feed in m/s :"),
+            "qvent"=>array("type"=>"value", "short"=>"Ventilation flow rate in m3/h :"),
+            "hbat"=>array("type"=>"value", "short"=>"building height in m :"),
+            "q4pasurf"=>array("type"=>"value", "short"=>"q4pasurf in m3/h/m2 - leakage flow rate at differential pressure of 4 pascals divided by atbat - q4pasurf is equivalent to european n50 :"),
+            "atbat"=>array("type"=>"value", "short"=>"atbat in m2 - wall surface exposed to energy losses :"),
+            "mea"=>array("type"=>"value", "short"=>"mea in m3/h - air inlet module :"),
+            "output"=>array("type"=>"newfeed", "engine"=>5, "short"=>"Enter output feed name for permeability losses in m3/h :")
         )
     );
 
@@ -145,11 +149,13 @@ function postprocess_controller()
                                 $timevalue = $feed->get_timevalue($id);
                                 $f['time'] = $timevalue["time"];
                             } else {
-                                $valid = false;
+                                // $valid = false;
+                                // $log->error("Invalid meta: ".json_encode($meta));
                             }
                             $item->$key = $f;
                         } else {
                             $valid = false;
+                            $log->error("Feed $id does not exist");
                         }
                     }
 
@@ -176,6 +182,7 @@ function postprocess_controller()
                                 $all_ending_times[] = $timevalue["time"];
                             } else {
                                 $valid = false;
+                                $log->error("Feed $id does not exist");
                             }
                         }
                         if ($valid){
@@ -189,6 +196,7 @@ function postprocess_controller()
                 }
             } else {
                 $valid = false;
+                $log->error("$process does not exist");
             }
 
             if ($valid) {
@@ -354,6 +362,10 @@ function postprocess_controller()
 
         $route->format = "json";
         return array('content'=>$params);
+    }
+
+    if ($route->action == 'logpath') {
+        return $settings['log']['location']."/postprocess.log";
     }
 
     if ($route->action == 'getlog') {
