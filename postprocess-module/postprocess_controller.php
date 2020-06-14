@@ -32,6 +32,11 @@ function postprocess_controller()
             "input"=>array("type"=>"feed", "engine"=>5, "short"=>"Select input feed:"),
             "output"=>array("type"=>"newfeed", "engine"=>5, "short"=>"Enter output feed name:")
         ),
+        "average"=>array(
+            "input"=>array("type"=>"feed", "engine"=>5, "short"=>"Select input feed:"),
+            "output"=>array("type"=>"newfeed", "engine"=>5, "short"=>"Enter output feed name:"),
+            "interval"=>array("type"=>"value", "short"=>"Interval of output feed (seconds):")
+        ),
         "accumulator"=>array(
             "input"=>array("type"=>"feed", "engine"=>5, "short"=>"Select input feed:"),
             "output"=>array("type"=>"newfeed", "engine"=>5, "short"=>"Enter output feed name:")
@@ -91,6 +96,25 @@ function postprocess_controller()
             "tint"=>array("type"=>"feed", "engine"=>5, "short"=>"Internal temperature feed / start temperature feed :"),
             "text"=>array("type"=>"feed", "engine"=>5, "short"=>"External temperature feed / return temperature feed :"),
             "output"=>array("type"=>"newfeed", "engine"=>5, "short"=>"Enter output energy feed name (kWh) :")
+        ),
+        "batterysimulator"=>array(
+            "solar"=>array("type"=>"feed", "engine"=>5, "short"=>"Select solar feed:"),
+            "consumption"=>array("type"=>"feed", "engine"=>5, "short"=>"Select consumption feed:"),
+            "capacity"=>array("type"=>"value", "default"=>4.4, "short"=>"Usable battery capacity in kWh"),
+            "max_charge_rate"=>array("type"=>"value", "default"=>2500.0, "short"=>"Max charge rate in Watts"),
+            "max_discharge_rate"=>array("type"=>"value", "default"=>2500.0, "short"=>"Max discharge rate in Watts"),
+            "round_trip_efficiency"=>array("type"=>"value", "default"=>0.9, "short"=>"Round trip efficiency 0.9 = 90%"),
+            "timezone"=>array("type"=>"timezone", "default"=>"Europe/London", "short"=>"Timezone for offpeak charging"),
+            "offpeak_soc_target"=>array("type"=>"value", "default"=>0, "short"=>"Offpeak charging SOC target in % (0 = turn off)"),
+            "offpeak_start"=>array("type"=>"value", "default"=>3, "short"=>"Offpeak charging start time"),
+            "charge"=>array("type"=>"newfeed", "default"=>"battery_charge", "engine"=>5, "short"=>"Enter battery charge feed name:"),
+            "discharge"=>array("type"=>"newfeed", "default"=>"battery_discharge", "engine"=>5, "short"=>"Enter battery discharge feed name:"),
+            "soc"=>array("type"=>"newfeed", "default"=>"battery_soc", "engine"=>5, "short"=>"Enter battery SOC feed name:"),
+            "import"=>array("type"=>"newfeed", "default"=>"import", "engine"=>5, "short"=>"Enter grid import feed name:"),
+            "charge_kwh"=>array("type"=>"newfeed", "default"=>"battery_charge_kwh", "engine"=>5, "short"=>"Enter battery charge kWh feed name:"),
+            "discharge_kwh"=>array("type"=>"newfeed", "default"=>"battery_discharge_kwh", "engine"=>5, "short"=>"Enter battery discharge kWh feed name:"),
+            "import_kwh"=>array("type"=>"newfeed", "default"=>"import_kwh", "engine"=>5, "short"=>"Enter grid import kWh feed name:"),
+            "solar_direct_kwh"=>array("type"=>"newfeed", "default"=>"solar_direct_kwh", "engine"=>5, "short"=>"Enter solar direct kwh feed name:")
         ),
         "basic_formula"=>array(
             "formula"=>array("type"=>"formula", "short"=>$bfdescription),
@@ -275,6 +299,11 @@ function postprocess_controller()
                if ($value!=$params->$key)
                    return array('content'=>"invalid value");
            }
+
+           if ($option['type']=="timezone") {
+               if (!$datetimezone = new DateTimeZone($params->$key))
+                   return array('content'=>"invalid timezone");
+           }
         }
 
         // If we got this far the input parameters where valid.
@@ -329,6 +358,7 @@ function postprocess_controller()
                    return array('content'=>"invalid feed");
                if ($f['engine']!=$option['engine'])
                    return array('content'=>"incorrect feed engine");
+               $params->$key = $feedid;
            }
 
            if ($option['type']=="value") {
@@ -336,12 +366,18 @@ function postprocess_controller()
                if ($value!=$params->$key)
                    return array('content'=>"invalid value");
            }
+           
+           if ($option['type']=="timezone") {
+               if (!$datetimezone = new DateTimeZone($params->$key))
+                   return array('content'=>"invalid timezone");
+           }
         }
 
         // If we got this far the input parameters where valid.
 
         $userid = $session['userid'];
         $processlist = $postprocess->get($userid);
+        
         if ($processlist==null) $processlist = array();
 
         $params->process = $process;
@@ -349,8 +385,8 @@ function postprocess_controller()
         $valid = false;
         for ($i=0; $i<count($processlist); $i++) {
             $tmp = $processlist[$i];
-            // print "prm:".json_encode($params)."\n";
-            // print "tmp:".json_encode($tmp)."\n";
+            //print "prm:".json_encode($params)."\n";
+            //print "tmp:".json_encode($tmp)."\n";
             if (json_encode($tmp)==json_encode($params)) $valid = true;
         }
         if (!$valid)

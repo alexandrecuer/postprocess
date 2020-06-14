@@ -57,12 +57,21 @@ $("#process_select").change(function(){
        }
 
        if (processes[process][z]["type"]=="newfeed") {
-           var suggestion = "";
-           options += "<input class='process_option' option="+z+" type='text' value='"+suggestion+"' /><br>";
+           var default_val = "";
+           if (processes[process][z]["default"]!=undefined) default_val = processes[process][z]["default"];
+           options += "<input class='process_option' option="+z+" type='text' value='"+default_val+"' /><br>";
        }
 
        if (processes[process][z]["type"]=="value") {
-           options += "<input class='process_option' option="+z+" type='text' /><br>";
+           var default_val = "";
+           if (processes[process][z]["default"]!=undefined) default_val = processes[process][z]["default"];
+           options += "<input class='process_option' option="+z+" type='text' value='"+default_val+"' /><br>";
+       }
+
+       if (processes[process][z]["type"]=="timezone") {
+           var default_val = "";
+           if (processes[process][z]["default"]!=undefined) default_val = processes[process][z]["default"];
+           options += "<input class='process_option' option="+z+" type='text' value='"+default_val+"' /><br>";
        }
 
        if (processes[process][z]["type"]=="formula") {
@@ -214,6 +223,8 @@ function processlist_update()
                     //if value, should print it
                     if (processes[process][key].type=="value")
                         out += processlist[z][key];
+                    if (processes[process][key].type=="timezone")
+                        out += processlist[z][key];
                     out += "</div>";
                 }
 
@@ -262,6 +273,10 @@ $("#processlist").on("click",".runprocess",function(){
         }
 
         if (processes[process][key].type=="value") {
+            params[key] = processlist[z][key];
+        }
+
+        if (processes[process][key].type=="timezone") {
             params[key] = processlist[z][key];
         }
 
