@@ -147,7 +147,6 @@ class PostProcess_infiltration_losses extends PostProcess_common
         fclose($out_fh);
         print("last time value: $time / $qvinf \n");
         updatetimevalue($out,$time,$qvinf);
-        return true;
         return [
           "success"=>true,
           "message"=>"bytes written: $written_bytes, last time value: $time, last written value $qvinf"
