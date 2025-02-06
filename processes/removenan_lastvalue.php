@@ -1,12 +1,12 @@
 <?php
 
-class PostProcess_removenan extends PostProcess_common
+class PostProcess_removenan_lastvalue extends PostProcess_common
 {
     public function description() {
         return array(
-            "name"=>"Remove missing values",
+            "name"=>"Replace missing values with last value",
             "group"=>"Data cleanup",
-            "description"=>"Remove missing data points from a feed by interpolating between values",
+            "description"=>"Remove missing data points from a feed by replacing with last value",
             "settings"=>array(
                 "feedid"=>array("type"=>"feed", "engine"=>5, "short"=>"Select feed to remove nan values:"),
             )
@@ -35,6 +35,8 @@ class PostProcess_removenan extends PostProcess_common
         $startval = 0;
         $startpos = 0;
         $nanfix = 0;
+
+        $value = NAN;
         
         $stime = microtime(true);
         while ($dplefttoread>0)
@@ -46,26 +48,14 @@ class PostProcess_removenan extends PostProcess_common
             for ($i=1; $i<=$count; $i++)
             {
                 $dpos = $fpos + ($i-1);
+
                 if (is_nan($values[$i])) {
-                    $in_nan_period = 1;
+                    fseek($fh,($dpos)*4);
+                    fwrite($fh,pack("f",$value));
+                    $nanfix++;
                 } else {
-                    $endval = $values[$i];
-                    if ($in_nan_period==1) {
-                        $npoints2 = $dpos - $startpos;
-                        $diff = ($endval - $startval) / $npoints2;
-                        for ($p=1; $p<$npoints2; $p++)
-                        {
-                            fseek($fh,($startpos+$p)*4);
-                            fwrite($fh,pack("f",$startval+($p*$diff)));
-                            $nanfix++;
-                        }
-                    }
-                    $startval = $endval;
-                    $startpos = $dpos;
-                    $in_nan_period = 0;
+                    $value = $values[$i];
                 }
-                
-                // if ($dpos%($npoints/10)==0) echo ".";
             }
             $dplefttoread -= $count;
             $fpos += $count;

@@ -1,13 +1,13 @@
 <?php
 
-class PostProcess_allowpositive extends PostProcess_common
+class PostProcess_allownegative extends PostProcess_common
 {
     public function description() {
         return array(
-            "name"=>"Allow positive",
+            "name"=>"Allow negative",
             "group"=>"Limits",
-            "description"=>"Allow only positive values",
-            "order"=>4,
+            "description"=>"Allow only negative values",
+            "order"=>5,
             "settings"=>array(
                 "input"=>array("type"=>"feed", "engine"=>5, "short"=>"Select input feed:"),
                 "output"=>array("type"=>"newfeed", "engine"=>5, "short"=>"Enter output feed name:", "nameappend"=>"")
@@ -75,12 +75,12 @@ class PostProcess_allowpositive extends PostProcess_common
             $value = NAN;
             if (!is_nan($tmp[1])) {
                 $value = 1*$tmp[1];
-                if ($value<0) $value = 0;
+                if ($value>0) $value = 0;
             }
             $buffer .= pack("f",$value);
         }
         
-        fwrite($of,$buffer);
+        fwrite($of,$buffer);        
         fclose($of);
         fclose($if);
         
@@ -90,6 +90,6 @@ class PostProcess_allowpositive extends PostProcess_common
         if ($byteswritten>0) {
             updatetimevalue($params->output,$time,$value);
         }
-        return array("success"=>true, "message"=>"bytes written: ".$byteswritten.", last time value: ".$time." ".$value);    
+        return array("success"=>true, "message"=>"bytes written: ".$byteswritten.", last time value: ".$time." ".$value);
     }
 }

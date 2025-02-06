@@ -1,14 +1,18 @@
 <?php
 
-class PostProcess_removenan extends PostProcess_common
+use JetBrains\PhpStorm\ArrayShape;
+
+class PostProcess_remove_morethan_lessthan extends PostProcess_common
 {
     public function description() {
         return array(
-            "name"=>"Remove missing values",
-            "group"=>"Data cleanup",
-            "description"=>"Remove missing data points from a feed by interpolating between values",
+            "name"=>"Remove more than/less than",
+            "group"=>"Limits",
+            "description"=>"Remove values more than or less than a certain value",
             "settings"=>array(
                 "feedid"=>array("type"=>"feed", "engine"=>5, "short"=>"Select feed to remove nan values:"),
+                "morethan"=>array("type"=>"value", "short"=>"Remove values above this limit:"),
+                "lessthan"=>array("type"=>"value", "short"=>"Remote values below this limit:")
             )
         );
     }
@@ -20,21 +24,20 @@ class PostProcess_removenan extends PostProcess_common
         
         $dir = $this->dir;
         $id = $processitem->feedid;
-        
+        $morethan = $processitem->morethan;
+        $lessthan = $processitem->lessthan;
+    
         if (!$fh = @fopen($dir.$id.".dat", 'c+')) {
             return array("success"=>false, "message"=>"could not open input feed");
         }
         if (!$npoints = floor(filesize($dir.$id.".dat") / 4.0)) {
             return array("success"=>false, "message"=>"feed is empty");
         }
-
         $fpos = 0;
         $dplefttoread = $npoints;
         $blocksize = 100000;
-        $in_nan_period = 0;
-        $startval = 0;
-        $startpos = 0;
-        $nanfix = 0;
+        
+        $fix_count = 0;
         
         $stime = microtime(true);
         while ($dplefttoread>0)
@@ -46,32 +49,25 @@ class PostProcess_removenan extends PostProcess_common
             for ($i=1; $i<=$count; $i++)
             {
                 $dpos = $fpos + ($i-1);
-                if (is_nan($values[$i])) {
-                    $in_nan_period = 1;
-                } else {
-                    $endval = $values[$i];
-                    if ($in_nan_period==1) {
-                        $npoints2 = $dpos - $startpos;
-                        $diff = ($endval - $startval) / $npoints2;
-                        for ($p=1; $p<$npoints2; $p++)
-                        {
-                            fseek($fh,($startpos+$p)*4);
-                            fwrite($fh,pack("f",$startval+($p*$diff)));
-                            $nanfix++;
-                        }
-                    }
-                    $startval = $endval;
-                    $startpos = $dpos;
-                    $in_nan_period = 0;
-                }
                 
-                // if ($dpos%($npoints/10)==0) echo ".";
+                if (!is_nan($values[$i])) {
+                    if ($values[$i]>$morethan) {
+                        fseek($fh,$dpos*4);
+                        fwrite($fh,pack("f",NAN));
+                        $fix_count ++;
+                    }
+                    else if ($values[$i]<$lessthan) {
+                        fseek($fh,$dpos*4);
+                        fwrite($fh,pack("f",NAN));
+                        $fix_count ++;
+                    }
+                }
             }
             $dplefttoread -= $count;
             $fpos += $count;
         }
         fclose($fh);
         echo "time: ".(microtime(true)-$stime)."\n";
-        return array("success" => true, "message"=>"nanfix: ".$nanfix." datapoints, ".round(($nanfix/$npoints)*100)."%\n");
+        return array("success" => true, "message"=>"nanfix: ".$fix_count." datapoints, ".round(($fix_count/$npoints)*100)."%\n");
     }
 }

@@ -1,85 +1,104 @@
 <?php
 
-function removeresets($dir,$processitem)
+class PostProcess_removeresets extends PostProcess_common
 {
-    if (!isset($processitem->input)) return false;
-    if (!isset($processitem->maxrate)) return false;
-    if (!isset($processitem->output)) return false;
-    
-    $input = $processitem->input;
-    $maxrate = $processitem->maxrate;
-    $output = $processitem->output;
-    // --------------------------------------------------
-    
-    if (!file_exists($dir.$input.".meta")) {
-        print "input file $input.meta does not exist\n";
-        return false;
+    public function description() {
+        return array(
+            "name"=>"Remove resets",
+            "group"=>"Data cleanup",
+            "description"=>"Remove resets from a cumulative feed e.g pulse count or total energy from a meter",
+            "settings"=>array(
+                "input"=>array("type"=>"feed", "engine"=>5, "short"=>"Select input feed:"),
+                "output"=>array("type"=>"newfeed", "engine"=>5, "short"=>"Enter output feed name:"),
+                "maxrate"=>array("type"=>"value", "short"=>"Max power (W):", "default"=>20000),
+                "minrate"=>array("type"=>"value", "short"=>"Min power (W):", "default"=>-20000)
+            )
+        );
     }
 
-    if (!file_exists($dir.$output.".meta")) {
-        print "output file $output.meta does not exist\n";
-        return false;
-    }
+    public function process($params)
+    {
+        $result = $this->validate($params);
+        if (!$result["success"]) return $result;
 
-    $im = getmeta($dir,$input);
-    $om = getmeta($dir,$output);
+        $input_meta = getmeta($this->dir,$params->input);
+        $output_meta = getmeta($this->dir,$params->output);
 
-    /*
-    if ($im->interval != $om->interval) {
-        print "feed intervals do not match\n";
-        return false;
-    }*/
-    
-    if ($om->npoints >= $im->npoints) {
-        print "output feed already up to date\n";
-        return false;
-    }
-    
-    // Copies over start_time to output meta file
-    createmeta($dir,$output,$im);
+        // Check that output feed is empty or has same start time and interval
+        if ($output_meta->npoints>0) {
+            if ($input_meta->start_time != $output_meta->start_time) {
+                return array("success"=>false, "message"=>"start time mismatch");
+            }
+            if ($input_meta->interval != $output_meta->interval) {
+                return array("success"=>false, "message"=>"interval mismatch");
+            }
+        } else {
+            // Copies over start_time to output meta file
+            createmeta($this->dir,$params->output,$input_meta);
+        }
 
-    if (!$if = @fopen($dir.$input.".dat", 'rb')) {
-        echo "ERROR: could not open $dir $input.dat\n";
-        return false;
-    }
-    
-    if (!$of = @fopen($dir.$output.".dat", 'c+')) {
-        echo "ERROR: could not open $dir $output.dat\n";
-        return false;
-    }
-    
-    $buffer = "";
-    $total = 0;
-    
-    fseek($if,$om->npoints*4);
-    if ($om->npoints>0) fseek($of,($om->npoints-1)*4);
-    
-    $tmp = unpack("f",fread($of,4));
-    $value = 1*$tmp[1];
-    
-    for ($n=$om->npoints; $n<$im->npoints; $n++) {
-        $tmp = unpack("f",fread($if,4));
+        // If recent mode, check that input feed has more points than output feed
+        if ($params->process_mode=='recent' && $output_meta->npoints >= $input_meta->npoints) {
+            return array("success"=>true, "message"=>"output feed already up to date");
+        }
         
-        $last_value = $value;
-        if (!is_nan($tmp[1])) $value = 1*$tmp[1];
+        if (!$if = @fopen($this->dir.$params->input.".dat", 'rb')) {
+            return array("success"=>false, "message"=>"could not open input feed");
+        }
         
-        $diff = $value - $last_value;
+        if (!$of = @fopen($this->dir.$params->output.".dat", 'c+')) {
+            return array("success"=>false, "message"=>"could not open output feed");
+        }
         
-        $rate = $diff / $im->interval;
-        
-        if ($diff>0 && $rate<$maxrate) $total += $diff;
-        $buffer .= pack("f",$total);
-    }
-    
-    fwrite($of,$buffer);
-    
-    print "bytes written: ".strlen($buffer)."\n";
-    fclose($of);
-    fclose($if);
+        $buffer = "";
+        $total = 0;
+        $value = 0;
+        $start_pos = 0;
 
-    $time = $im->start_time + ($im->npoints * $im->interval);
-    print "last time value: ".$time." ".$total."\n";
-    updatetimevalue($output,$time,$total);
-    
-    return true;
+        if ($params->process_mode=='from' && $output_meta->npoints>0) {
+            $start_pos = floor(($params->process_start - $input_meta->start_time) / $input_meta->interval);
+            if ($start_pos<0) $start_pos = 0;
+            if ($start_pos>$input_meta->npoints) {
+                return array("success"=>false, "message"=>"start time is after end of input feed");
+            }
+        }
+
+        if ($params->process_mode=='recent' && $output_meta->npoints>0) {
+            $start_pos = $output_meta->npoints;
+        }
+
+        if ($start_pos>0) {
+            fseek($if,$start_pos*4);
+            fseek($of,($start_pos-1)*4);
+            $tmp = unpack("f",fread($of,4));
+            $value = $tmp[1]*1;
+        }
+        
+        for ($n=$start_pos; $n<$input_meta->npoints; $n++) {
+            $tmp = unpack("f",fread($if,4));
+            
+            $last_value = $value;
+            if (!is_nan($tmp[1])) $value = 1*$tmp[1];
+            
+            $diff = $value - $last_value;
+            
+            $rate = $diff / $input_meta->interval;
+            
+            if ($rate>=$params->minrate && $rate<$params->maxrate) $total += $diff;
+
+            $buffer .= pack("f",$total);
+        }
+        
+        fwrite($of,$buffer);
+        fclose($of);
+        fclose($if);
+        
+        $time = $input_meta->start_time + ($input_meta->npoints * $input_meta->interval);
+        
+        $byteswritten = strlen($buffer);
+        if ($byteswritten>0) {
+            updatetimevalue($params->output,$time,$total);
+        }
+        return array("success"=>true, "message"=>"bytes written: ".$byteswritten.", last time value: ".$time." ".$total);    
+    }
 }

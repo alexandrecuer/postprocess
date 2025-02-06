@@ -1,16 +1,16 @@
 <?php
 
-class PostProcess_importcalc extends PostProcess_common
+class PostProcess_solardirectcalc extends PostProcess_common
 {
     public function description() {
         return array(
-            "name"=>"Import calculation",
+            "name"=>"Solar direct calculation",
             "group"=>"Solar",
-            "description"=>"Calculate grid import from consumption and generation",
+            "description"=>"Calculate direct use of solar from consumption and generation feeds",
             "settings"=>array(
-                "consumption"=>array("type"=>"feed", "engine"=>5, "short"=>"Select consumption power feed:"),
-                "generation"=>array("type"=>"feed", "engine"=>5, "short"=>"Select solar generation power feed:"),
-                "output"=>array("type"=>"newfeed", "engine"=>5, "short"=>"Enter import feed name:", "nameappend"=>"")
+                "use"=>array("type"=>"feed", "engine"=>5, "short"=>"Select consumption power feed:"),
+                "gen"=>array("type"=>"feed", "engine"=>5, "short"=>"Select solar generation power feed:"),
+                "out"=>array("type"=>"newfeed", "engine"=>5, "short"=>"Enter solar direct feed name:", "nameappend"=>"")
             )
         );
     }
@@ -92,13 +92,13 @@ class PostProcess_importcalc extends PostProcess_common
                 $tmp = unpack("f",fread($gen_fh,4));
                 $genval = $tmp[1];
             }
-
-            $importval = NAN;
-            if (!is_nan($useval)) $importval = $useval;
-            if (!is_nan($genval) && !is_nan($genval)) $importval = $useval - $genval;
-            if ($importval<0) $importval = 0;
             
-            $buffer .= pack("f",$importval*1.0);
+            $directval = NAN;
+            if (!is_nan($useval) && !is_nan($genval)) {
+                if ($genval>$useval) $genval = $useval;
+                $directval = $genval;
+            }
+            $buffer .= pack("f",$directval*1.0);
         }
         
         fwrite($out_fh,$buffer);
@@ -108,8 +108,8 @@ class PostProcess_importcalc extends PostProcess_common
         
         $byteswritten = strlen($buffer);
         if ($byteswritten>0) {
-            updatetimevalue($params->out,$time,$importval);
+            updatetimevalue($params->output,$time,$directval);
         }
-        return array("success"=>true, "message"=>"bytes written: ".$byteswritten.", last time value: ".$time." ".$importval);
+        return array("success"=>true, "message"=>"bytes written: ".$byteswritten.", last time value: ".$time." ".$directval);
     }
 }
